@@ -85,7 +85,7 @@ services:
         max-file: '5'
 
   mariadb:
-    image: 'bytelusdev/azuracast_db:${AZURACAST_VERSION:-latest}'
+    image: 'bytelusdev/azuracast_mariadb:${AZURACAST_VERSION:-latest}'
     volumes:
       - db_data:/var/lib/mysql
     env_file: azuracast.env
