@@ -85,7 +85,7 @@ services:
         max-file: "5"
 
   mariadb:
-    image: "bytelusdev/azuracast_mariadb:${AZURACAST_VERSION:-latest}"
+    image: "bytelusdev/azuracast_db:${AZURACAST_VERSION:-latest}"
     volumes:
       - db_data:/var/lib/mysql
     env_file: azuracast.env
@@ -107,7 +107,7 @@ services:
 
   stations:
     container_name: azuracast_stations
-    image: "bytelusdev/azuracast_stations:${AZURACAST_VERSION:-latest}"
+    image: "bytelusdev/azuracast_radio:${AZURACAST_VERSION:-latest}"
     ports:
       # This default mapping is the outgoing and incoming ports for the first 50 stations.
       # You can override this port mapping in your own docker-compose.override.yml file.
