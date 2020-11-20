@@ -268,7 +268,7 @@ install() {
         )
         sed -i "s/azur4c457/${NEW_PASSWORD}/g" azuracast.env
     fi
-
+    docker login
     setup-release
 
     if [[ ! -f docker-compose.yml ]]; then
@@ -307,7 +307,7 @@ update() {
     if ask "Please make sure your AzuraCast installation is backed up before updating. Continue?" Y; then
         # Check for a new Docker Utility Script.
         curl -fsSL https://raw.githubusercontent.com/bytelus/Radiolize/main/docker.sh -o docker.new.sh
-
+        docker login
         local UTILITY_FILES_MATCH
         UTILITY_FILES_MATCH="$(
             cmp --silent docker.sh docker.new.sh
