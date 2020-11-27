@@ -608,6 +608,8 @@ letsencrypt-create() {
     docker-compose stop web
     docker-compose rm -f web
     docker-compose up -d
+    docker exec -d azuracast_web bash -c "sudo chown -R azuracast:azuracast ../stations"
+
     exit
 }
 
