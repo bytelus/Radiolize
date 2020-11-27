@@ -168,7 +168,7 @@ envfile-set() {
 }
 
 #
-# Configure the ports used by AzuraCast.
+# Configure the ports used by Radiolize.
 #
 setup-ports() {
     envfile-set "AZURACAST_HTTP_PORT" "80" "Port to use for HTTP connections"
@@ -177,7 +177,7 @@ setup-ports() {
 }
 
 #
-# Configure the settings used by LetsEncrypt.
+# Generates SSL configurations on env file
 #
 setup-letsencrypt() {
     envfile-set "LETSENCRYPT_HOST" "" "Domain name (example.com) or names (example.com,foo.bar) to use with LetsEncrypt"
@@ -189,7 +189,7 @@ setup-letsencrypt() {
 #
 setup-release() {
     local AZURACAST_VERSION="latest"
-    if ask "Prefer stable release versions of AzuraCast?" N; then
+    if ask "Prefer stable release versions of Radiolize?" N; then
         AZURACAST_VERSION="stable"
     fi
 
@@ -201,6 +201,7 @@ setup-release() {
 # Usage: ./docker.sh install
 #
 install() {
+    # Install Curl If not installed
     if [[ ! $(command -v curl) ]]; then
         echo "cURL does not appear to be installed."
         echo "Install curl using your host's package manager,"
@@ -208,6 +209,7 @@ install() {
         exit 1
     fi
 
+    # If Docker is not installed: install with recommended way.
     if [[ $(command -v docker) && $(docker --version) ]]; then
         echo "Docker is already installed! Continuing..."
     else
@@ -226,6 +228,7 @@ install() {
         fi
     fi
 
+    # If docker-compose is not installed:  install with recommended way.
     if [[ $(command -v docker-compose) && $(docker-compose --version) ]]; then
         echo "Docker Compose is already installed! Continuing..."
     else
@@ -251,13 +254,15 @@ install() {
         fi
     fi
 
+    #Get Default environment file from source
     if [[ ! -f .env ]]; then
         echo "Writing default .env file..."
         curl -fsSL https://raw.githubusercontent.com/bytelus/Radiolize/main/sample.env -o .env
     fi
 
+    #Get Default Settings file from source
     if [[ ! -f azuracast.env ]]; then
-        echo "Creating default AzuraCast settings file..."
+        echo "Creating default Radiolize settings file..."
         curl -fsSL https://raw.githubusercontent.com/bytelus/Radiolize/main/azuracast.sample.env -o azuracast.env
 
         # Generate a random password and replace the MariaDB password with it.
@@ -268,9 +273,10 @@ install() {
         )
         sed -i "s/azur4c457/${NEW_PASSWORD}/g" azuracast.env
     fi
-    docker login
+
     setup-release
 
+    #Get DockerFile from source
     if [[ ! -f docker-compose.yml ]]; then
         echo "Retrieving default docker-compose.yml file..."
 
@@ -285,7 +291,7 @@ install() {
         fi
     fi
 
-    if ask "Customize AzuraCast ports?" N; then
+    if ask "Customize Radiolize ports?" N; then
         setup-ports
     fi
 
@@ -293,8 +299,10 @@ install() {
         setup-letsencrypt
     fi
 
+    #Get docker images and run them on background
     docker-compose pull
     docker-compose run --rm --user="azuracast" web azuracast_install "$@"
+    docker exec -d azuracast_web bash -c "sudo chown -R azuracast:azuracast ../stations"
     docker-compose up -d
     exit
 }
@@ -307,7 +315,7 @@ update() {
     if ask "Please make sure your AzuraCast installation is backed up before updating. Continue?" Y; then
         # Check for a new Docker Utility Script.
         curl -fsSL https://raw.githubusercontent.com/bytelus/Radiolize/main/docker.sh -o docker.new.sh
-        docker login
+
         local UTILITY_FILES_MATCH
         UTILITY_FILES_MATCH="$(
             cmp --silent docker.sh docker.new.sh
@@ -355,9 +363,9 @@ update() {
         AZURACAST_VERSION="${REPLY:-latest}"
 
         if [[ $AZURACAST_VERSION == "stable" ]]; then
-            curl -fsSL https://raw.githubusercontent.com/bytelus/Radiolize/main/docker-compose.sample.yml -o docker-compose.new.yml
+            curl -fsSL https://raw.githubusercontent.com/bytelus/Radiolize/main/docker-compose.sample.yml -o docker-compose.yml
         else
-            curl -fsSL https://raw.githubusercontent.com/bytelus/Radiolize/main/docker-compose.sample.yml -o docker-compose.new.yml
+            curl -fsSL https://raw.githubusercontent.com/bytelus/Radiolize/main/docker-compose.sample.yml -o docker-compose.yml
         fi
 
         # Check for updated Docker Compose config.
@@ -390,7 +398,7 @@ update() {
         docker volume rm azuracast_www_vendor
         docker volume rm azuracast_tmp_data
         docker volume rm azuracast_redis_data
-
+        docker exec -d azuracast_web bash -c "sudo chown -R azuracast:azuracast ../stations"
         docker-compose run --rm --user="azuracast" web azuracast_update "$@"
         docker-compose up -d
 
@@ -406,6 +414,7 @@ update() {
 # Usage: ./docker.sh update-self
 #
 update-self() {
+    #Get new docker.sh file from server
     curl -fsSL https://raw.githubusercontent.com/bytelus/Radiolize/main/docker.sh -o docker.sh
     chmod a+x docker.sh
 
@@ -423,28 +432,11 @@ cli() {
 }
 
 #
-# Enter the bash terminal of the running web container.
+# Enter the bash terminal of the running web container. With azuracast user.
 # Usage: ./docker.sh bash
 #
 bash() {
     docker-compose exec --user="azuracast" web bash
-    exit
-}
-
-#
-# Back up the Docker volumes to a .tar.gz file.
-# Usage:
-# ./docker.sh backup [/custom/backup/dir/custombackupname.zip]
-#
-backup() {
-    BACKUP_PATH=${1:-"./backup.tar.gz"}
-    BACKUP_FILENAME=$(basename -- "$BACKUP_PATH")
-    BACKUP_EXT="${BACKUP_FILENAME##*.}"
-    shift
-
-    MSYS_NO_PATHCONV=1 docker exec --user="azuracast" azuracast_web azuracast_cli azuracast:backup "/tmp/cli_backup.${BACKUP_EXT}" "$@"
-    docker cp "azuracast_web:tmp/cli_backup.${BACKUP_EXT}" "${BACKUP_PATH}"
-    MSYS_NO_PATHCONV=1 docker exec --user="azuracast" azuracast_web rm -f "/tmp/cli_backup.${BACKUP_EXT}"
     exit
 }
 
@@ -475,6 +467,22 @@ db() {
     exit
 }
 
+#
+# Back up the Docker volumes to a .tar.gz file.
+# Usage:
+# ./docker.sh backup [/custom/backup/dir/custombackupname.zip]
+#
+backup() {
+    BACKUP_PATH=${1:-"./backup.tar.gz"}
+    BACKUP_FILENAME=$(basename -- "$BACKUP_PATH")
+    BACKUP_EXT="${BACKUP_FILENAME##*.}"
+    shift
+
+    MSYS_NO_PATHCONV=1 docker exec --user="azuracast" azuracast_web azuracast_cli azuracast:backup "/tmp/cli_backup.${BACKUP_EXT}" "$@"
+    docker cp "azuracast_web:tmp/cli_backup.${BACKUP_EXT}" "${BACKUP_PATH}"
+    MSYS_NO_PATHCONV=1 docker exec --user="azuracast" azuracast_web rm -f "/tmp/cli_backup.${BACKUP_EXT}"
+    exit
+}
 
 #
 # Restore an AzuraCast backup into Docker.
@@ -493,6 +501,7 @@ restore() {
         exit 1
     fi
 
+    # Check if there is a file
     if [[ ! -f ${BACKUP_PATH} ]]; then
         echo "File '${BACKUP_PATH}' does not exist. Nothing to restore."
         exit 1
@@ -507,6 +516,8 @@ restore() {
 
         docker-compose up -d web
         docker cp "${BACKUP_PATH}" "azuracast_web:tmp/cli_backup.${BACKUP_EXT}"
+        # Run Restoration command in  azuracast cli
+        docker exec -d azuracast_web bash -c "sudo chown -R azuracast:azuracast ../stations"
         MSYS_NO_PATHCONV=1 docker exec --user="azuracast" azuracast_web azuracast_restore "/tmp/cli_backup.${BACKUP_EXT}" "$@"
 
         docker-compose down
