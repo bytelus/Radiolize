@@ -304,6 +304,7 @@ install() {
     docker-compose run --rm --user="azuracast" web azuracast_install "$@"
     docker exec -d azuracast_web bash -c "sudo chown -R azuracast:azuracast ../stations"
     docker-compose up -d
+     docker exec -d azuracast_web bash -c "sudo chown -R azuracast:azuracast ../stations"
     exit
 }
 
